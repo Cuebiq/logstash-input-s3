@@ -147,9 +147,9 @@ class LogStash::Inputs::S3 < LogStash::Inputs::Base
           @logger.debug("objects[] length is: ", :length => objects.length)
         end
       end
-      @logger.info('S3 input: No files found in bucket', :prefix => new_prefix) unless found
+      @logger.info('S3 input: No files found in bucket', :prefix => @new_prefix) unless found
     rescue Aws::Errors::ServiceError => e
-      @logger.error("S3 input: Unable to list objects in bucket", :prefix => new_prefix, :message => e.message)
+      @logger.error("S3 input: Unable to list objects in bucket", :prefix => @new_prefix, :message => e.message)
     end
     objects.keys.sort {|a,b| objects[a] <=> objects[b]}
   end # def fetch_new_files
