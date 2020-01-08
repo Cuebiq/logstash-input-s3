@@ -3,6 +3,7 @@ require "logstash/inputs/base"
 require "logstash/namespace"
 require "logstash/plugin_mixins/aws_config"
 require "time"
+require "date"
 require "tmpdir"
 require "stud/interval"
 require "stud/temporary"
@@ -34,6 +35,8 @@ class LogStash::Inputs::S3 < LogStash::Inputs::Base
 
   # If specified, the prefix of filenames in the bucket must match (not a regexp)
   config :prefix, :validate => :string, :default => nil
+
+  config :datefrmt, :validate => :string, :default => nil
 
   config :additional_settings, :validate => :hash, :default => {}
 
@@ -124,8 +127,10 @@ class LogStash::Inputs::S3 < LogStash::Inputs::Base
   def list_new_files
     objects = {}
     found = false
+    @new_prefix = build_complete_prefix(prefix)
+    @logger.debug("S3 input: New Prefix", :prefix => @new_prefix)
     begin
-      @s3bucket.objects(:prefix => @prefix).each do |log|
+      @s3bucket.objects(:prefix => @new_prefix).each do |log|
         found = true
         @logger.debug("S3 input: Found key", :key => log.key)
         if ignore_filename?(log.key)
@@ -142,14 +147,22 @@ class LogStash::Inputs::S3 < LogStash::Inputs::Base
           @logger.debug("objects[] length is: ", :length => objects.length)
         end
       end
-      @logger.info('S3 input: No files found in bucket', :prefix => prefix) unless found
+      @logger.info('S3 input: No files found in bucket', :prefix => new_prefix) unless found
     rescue Aws::Errors::ServiceError => e
-      @logger.error("S3 input: Unable to list objects in bucket", :prefix => prefix, :message => e.message)
+      @logger.error("S3 input: Unable to list objects in bucket", :prefix => new_prefix, :message => e.message)
     end
     objects.keys.sort {|a,b| objects[a] <=> objects[b]}
   end # def fetch_new_files
 
   public
+
+  def build_complete_prefix(prefix)
+    prefix
+    unless @datefrmt.nil?
+      prefix.sub("##datefrmt##", DateTime.now.strftime(@datefrmt))
+    end
+  end
+
   def backup_to_bucket(object)
     unless @backup_to_bucket.nil?
       backup_key = "#{@backup_add_prefix}#{object.key}"
